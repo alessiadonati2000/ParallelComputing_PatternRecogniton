@@ -12,4 +12,4 @@ struct TimeSeries {
 // Funzione per leggere una serie temporale da un file CSV
 TimeSeries read_csv(const std::string& filepath);
 
-#endif //PARALLELCOMPUTING_PATTERNRECOGNITION_CSVREADER_H
+#endif

@@ -6,8 +6,8 @@
 #include <algorithm>
 
 #include "CSVReader.h"
-#include "SequentialRecognition.h" // Nuovo include
-#include "ParallelRecognition.h"  // Nuovo include
+#include "SequentialRecognition.h"
+#include "ParallelRecognition.h"
 
 namespace fs = std::filesystem;
 
@@ -32,32 +32,32 @@ int main() {
     // --- ESECUZIONE SEQUENZIALE ---
     std::cout << "\n--- Avvio Ricerca Sequenziale ---" << std::endl;
     auto start_seq = std::chrono::high_resolution_clock::now();
-    MatchResult overall_best_seq;
-    std::string best_file_seq;
-    for (const auto& file_path : series_files) {
-        TimeSeries series = read_csv(file_path);
-        MatchResult result = find_best_match_sequential(series, query); // Chiama la funzione sequenziale
-        if (result.min_sad < overall_best_seq.min_sad) {
-            overall_best_seq = result;
-            best_file_seq = fs::path(file_path).filename().string();
+        MatchResult overall_best_seq;
+        std::string best_file_seq;
+        for (const auto& file_path : series_files) {
+            TimeSeries series = read_csv(file_path);
+            MatchResult result = sequential_recognition(series, query);
+            if (result.min_sad < overall_best_seq.min_sad) {
+                overall_best_seq = result;
+                best_file_seq = fs::path(file_path).filename().string();
+            }
         }
-    }
     auto end_seq = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> duration_seq = end_seq - start_seq;
 
     // --- ESECUZIONE PARALLELA ---
     std::cout << "\n--- Avvio Ricerca Parallela (OpenMP) ---" << std::endl;
     auto start_par = std::chrono::high_resolution_clock::now();
-    MatchResult overall_best_par;
-    std::string best_file_par;
-    for (const auto& file_path : series_files) {
-        TimeSeries series = read_csv(file_path);
-        MatchResult result = find_best_match_parallel_omp(series, query); // Chiama la funzione parallela
-        if (result.min_sad < overall_best_par.min_sad) {
-            overall_best_par = result;
-            best_file_par = fs::path(file_path).filename().string();
+        MatchResult overall_best_par;
+        std::string best_file_par;
+        for (const auto& file_path : series_files) {
+            TimeSeries series = read_csv(file_path);
+            MatchResult result = parallel_recognition(series, query);
+            if (result.min_sad < overall_best_par.min_sad) {
+                overall_best_par = result;
+                best_file_par = fs::path(file_path).filename().string();
+            }
         }
-    }
     auto end_par = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> duration_par = end_par - start_par;
 

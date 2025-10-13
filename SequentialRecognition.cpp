@@ -1,6 +1,6 @@
 #include "SequentialRecognition.h"
 
-MatchResult find_best_match_sequential(const TimeSeries& series, const TimeSeries& query) {
+MatchResult sequential_recognition(const TimeSeries& series, const TimeSeries& query) {
     if (query.values.size() > series.values.size() || query.values.empty()) {
         return {};
     }
