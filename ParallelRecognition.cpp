@@ -1,11 +1,12 @@
 #include "ParallelRecognition.h"
 #include <omp.h>
 #include <vector>
+#include <stdexcept>
 
 // Questa versione con omp critical genera un collo di bottiglia
 /*MatchResult parallel_recognition(const TimeSeries& series, const TimeSeries& query) {
     if (query.values.size() > series.values.size() || query.values.empty()) {
-        return {};
+        throw std::runtime_error("Query più grande della serie oppure vuota.");
     }
 
     MatchResult global_result;
@@ -30,7 +31,7 @@
 // Questa versione elimina il collo di bottiglia
 MatchResult parallel_recognition(const TimeSeries& series, const TimeSeries& query) {
     if (query.values.size() > series.values.size() || query.values.empty()) {
-        return {};
+        throw std::runtime_error("Query più grande della serie oppure vuota.");
     }
 
     MatchResult global_result;
