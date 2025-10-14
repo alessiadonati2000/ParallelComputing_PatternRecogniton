@@ -19,4 +19,10 @@ add_executable(
         ParallelRecognition.h
 )
 
+# Aggiunge l'opzione specifica per MSVC per abilitare il supporto
+# completo a OpenMP, incluse le riduzioni min/max.
+if(MSVC)
+    target_compile_options(ParallelComputing_PatternRecognition PRIVATE "/openmp:llvm")
+endif()
+
 target_link_libraries(ParallelComputing_PatternRecognition PRIVATE OpenMP::OpenMP_CXX)
