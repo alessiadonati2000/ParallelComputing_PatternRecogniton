@@ -4,12 +4,7 @@
 #include <string>
 #include <vector>
 
-// Struttura per contenere i valori di una serie temporale
-struct TimeSeries {
-    std::vector<double> values;
-};
-
-// Funzione per leggere una serie temporale da un file CSV
-TimeSeries read_csv(const std::string& filepath);
+// Funzione per leggere una serie temporale da un file CSV e restituirla come vector
+std::vector<float> read_csv(const std::string& filepath);
 
 #endif

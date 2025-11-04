@@ -1,9 +1,8 @@
 #ifndef PARALLELCOMPUTING_PATTERNRECOGNITION_SEQUENTIALRECOGNITION_H
 #define PARALLELCOMPUTING_PATTERNRECOGNITION_SEQUENTIALRECOGNITION_H
 
-#include "CSVReader.h"
-#include "SAD.h" // Per usare MatchResult e calculate_sad
+#include "SAD.h"
 
-MatchResult sequential_recognition(const TimeSeries& series, const TimeSeries& query);
+MatchResult sequential_recognition(const std::vector<float>& serie, const std::vector<float>& query);
 
 #endif //PARALLELCOMPUTING_PATTERNRECOGNITION_SEQUENTIALRECOGNITION_H

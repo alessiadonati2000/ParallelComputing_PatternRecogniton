@@ -1,16 +1,17 @@
 #include "CSVReader.h"
+
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
 
-// Legge il file .csv e ne estrae i valori salvandoli in una struct TimeSeries
-TimeSeries read_csv(const std::string& filepath) {
+// Legge il file .csv e ne estrae i valori salvandoli in vector
+std::vector<float> read_csv(const std::string& filepath) {
     std::ifstream file(filepath);
     if (!file.is_open()) {
         throw std::runtime_error("Impossibile aprire il file: " + filepath);
     }
 
-    TimeSeries timeseries;
+    std::vector<float> timeserie;
     std::string line;
 
     while (std::getline(file, line)) {
@@ -23,7 +24,7 @@ TimeSeries read_csv(const std::string& filepath) {
         // Leggi la seconda cella (valore)
         if (std::getline(ss, cell, ';')) {
             try {
-                timeseries.values.push_back(std::stod(cell));
+                timeserie.push_back(std::stof(cell));
             } catch (const std::invalid_argument& e) {
                 // Ignora righe mal formattate se necessario
             }
@@ -31,5 +32,5 @@ TimeSeries read_csv(const std::string& filepath) {
     }
 
     file.close();
-    return timeseries;
+    return timeserie;
 }

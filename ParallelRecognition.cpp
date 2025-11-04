@@ -1,115 +1,121 @@
 #include "ParallelRecognition.h"
+#include "SequentialRecognition.h"
 #include <omp.h>
-#include <vector>
-#include <stdexcept>
 
-// Questa versione con omp critical genera un collo di bottiglia
-MatchResult parallel_recognition_bottleneck(const TimeSeries& series, const TimeSeries& query) {
-    if (query.values.size() > series.values.size() || query.values.empty()) {
-        throw std::runtime_error("Query più grande della serie oppure vuota.");
-    }
+/**
+ * @brief Versione 1: "Bottleneck"
+ */
+MatchResult parallel_recognition_bottleneck(const std::vector<std::vector<float>>& dataset, const std::vector<float>& query) {
 
-    MatchResult global_result;
-    long long search_range = series.values.size() - query.values.size();
+    MatchResult best_global_match; // Unica variabile condivisa
 
-#pragma omp parallel for
-    for (long long i = 0; i <= search_range; ++i) {
-        double current_sad = calculate_sad(series, query, i);
+    // parallel for divide il loop 'i' tra i thread
+    // schedule(static, 1) assicura un chunk piccolo per massimizzare la contesa (per scopi didattici)
+    #pragma omp parallel for schedule(static, 1)
+    for (size_t i = 0; i < dataset.size(); ++i) {
 
-#pragma omp critical
+        // 1. Ogni thread calcola il suo miglior match *locale* per la serie 'i'
+        MatchResult series_result = sequential_recognition(dataset[i], query);
+
+        // 2. Errore "Bottleneck": si accede alla risorsa condivisa ad *ogni* iterazione.
+        // Tutti i thread si mettono in coda qui, uno alla volta, uccidendo il parallelismo.
+        #pragma omp critical
         {
-            if (current_sad < global_result.min_sad) {
-                global_result.min_sad = current_sad;
-                global_result.index = i;
+            if (series_result.min_sad < best_global_match.min_sad) {
+                best_global_match.min_sad = series_result.min_sad;
+                best_global_match.index = series_result.index;
             }
         }
     }
-    return global_result;
+    return best_global_match;
 }
 
-// Questa versione elimina il collo di bottiglia
-MatchResult parallel_recognition(const TimeSeries& series, const TimeSeries& query) {
-    if (query.values.size() > series.values.size() || query.values.empty()) {
-        throw std::runtime_error("Query più grande della serie oppure vuota.");
-    }
 
-    MatchResult global_result;
-    long long search_range = series.values.size() - query.values.size();
+/**
+ * @brief Versione 2: "Standard" (Good Practice)
+ */
+MatchResult parallel_recognition_standard(const std::vector<std::vector<float>>& dataset, const std::vector<float>& query) {
 
-    // Ogni thread avrà il suo risultato locale
-    MatchResult local_result;
+    MatchResult best_global_match; // Risultato finale condiviso
 
-#pragma omp parallel private(local_result)
+    #pragma omp parallel
     {
-        // Inizializza il risultato locale per questo thread
-        local_result.min_sad = std::numeric_limits<double>::max();
-        local_result.index = -1;
+        // 1. Ogni thread crea il *proprio* miglior risultato locale
+        MatchResult best_thread_match;
 
-#pragma omp for nowait // nowait è opzionale qui ma può migliorare le performance
-        for (long long i = 0; i <= search_range; ++i) {
-            double current_sad = calculate_sad(series, query, i);
-            if (current_sad < local_result.min_sad) {
-                local_result.min_sad = current_sad;
-                local_result.index = i;
+        // 2. Il loop 'for' è diviso tra i thread.
+        // schedule(dynamic) è una buona scelta se le serie hanno lunghezze molto diverse.
+        #pragma omp for schedule(dynamic)
+        for (size_t i = 0; i < dataset.size(); ++i) {
+
+            MatchResult series_result = sequential_recognition(dataset[i], query);
+
+            // 3. Ogni thread aggiorna solo la *propria* variabile locale.
+            // Nessuna contesa, questo è velocissimo.
+            if (series_result.min_sad < best_thread_match.min_sad) {
+                best_thread_match.min_sad = series_result.min_sad;
+                best_thread_match.index = series_result.index;
             }
         }
 
-        // Ora confrontiamo il risultato locale di questo thread con quello globale
-        // Questa sezione critica è eseguita solo UNA VOLTA per thread, non ad ogni iterazione!
-#pragma omp critical
+        // 4. Sezione Critica (Fine):
+        // Solo *una volta* per thread, si confronta il miglior risultato
+        // locale (best_thread_match) con quello globale (best_global_match).
+        #pragma omp critical
         {
-            if (local_result.min_sad < global_result.min_sad) {
-                global_result = local_result;
+            if (best_thread_match.min_sad < best_global_match.min_sad) {
+                best_global_match = best_thread_match;
             }
         }
-    }
+    } // --- fine regione parallela ---
 
-    return global_result;
+    return best_global_match;
 }
 
-MatchResult parallel_recognition_reduction(const TimeSeries& series, const TimeSeries& query) {
-    if (query.values.size() > series.values.size() || query.values.empty()) {
-        throw std::runtime_error("Query più grande della serie oppure vuota.");
+
+/**
+ * @brief Funzione helper per la riduzione custom (V3)
+ * Confronta due risultati e restituisce il "minore" (quello con SAD minore).
+ */
+MatchResult min_sad_reducer(MatchResult a, MatchResult b) {
+    if (a.min_sad < b.min_sad) {
+        return a;
+    }
+    return b;
+}
+
+// 3. Dichiara la riduzione custom
+// Nome: min_sad_result
+// Tipo: GlobalMatchResult
+// Funzione: min_sad_reducer
+// Inizializzatore: un oggetto GlobalMatchResult di default (SAD = infinito)
+#pragma omp declare reduction(min_sad_result : GlobalMatchResult : \
+    omp_out = min_sad_reducer(omp_out, omp_in)) \
+    initializer(omp_priv = GlobalMatchResult())
+
+
+/**
+ * @brief Versione 3: "Reduction" (Advanced)
+ */
+MatchResult parallel_recognition_reduction(const std::vector<std::vector<float>>& dataset, const std::vector<float>& query) {
+
+    MatchResult best_global_match; // Questa variabile accumulerà il risultato
+
+    // Usiamo la nostra riduzione custom "min_sad_result"
+    #pragma omp parallel for schedule(dynamic) reduction(min_sad_result:best_global_match)
+    for (size_t i = 0; i < dataset.size(); ++i) {
+
+        MatchResult series_result = sequential_recognition(dataset[i], query);
+
+        // Se questo risultato è migliore del "best_global_match" *locale* del thread,
+        // lo aggiorniamo. OpenMP gestisce l'unione di tutti i risultati
+        // "best_global_match" locali alla fine.
+        if (series_result.min_sad < best_global_match.min_sad) {
+            best_global_match.min_sad = series_result.min_sad;
+            best_global_match.index = series_result.index;
+        }
     }
 
-    long long search_range = series.values.size() - query.values.size();
-
-    // 1. Creiamo un contenitore per i risultati parziali, uno per ogni thread
-    int max_threads = omp_get_max_threads();
-    std::vector<MatchResult> results_per_thread(max_threads);
-
-    // 2. Inizia la regione parallela. Ogni thread lavora in modo indipendente.
-#pragma omp parallel
-    {
-        int thread_id = omp_get_thread_num();
-
-        // Inizializziamo il risultato locale per QUESTO thread
-        results_per_thread[thread_id].min_sad = std::numeric_limits<double>::max();
-        results_per_thread[thread_id].index = -1;
-
-        // 3. Il lavoro del ciclo 'for' viene distribuito tra i thread
-#pragma omp for
-        for (long long i = 0; i <= search_range; ++i) {
-            double current_sad = calculate_sad(series, query, i);
-
-            // Ogni thread aggiorna SOLO la sua cella nell'array.
-            // Non c'è conflitto (race condition) con altri thread.
-            if (current_sad < results_per_thread[thread_id].min_sad) {
-                results_per_thread[thread_id].min_sad = current_sad;
-                results_per_thread[thread_id].index = i;
-            }
-        }
-    } // --- Fine della regione parallela ---
-
-    // 4. Riduzione Finale: il thread master trova il miglior risultato tra quelli parziali.
-    // Questo ciclo è sequenziale ma estremamente veloce, perché itera solo sul numero di thread.
-    MatchResult final_result;
-    for (int i = 0; i < max_threads; ++i) {
-        if (results_per_thread[i].min_sad < final_result.min_sad) {
-            final_result = results_per_thread[i];
-        }
-    }
-
-    return final_result;
-
+    // Non serve nessuna sezione critica! OpenMP fa tutto.
+    return best_global_match;
 }
