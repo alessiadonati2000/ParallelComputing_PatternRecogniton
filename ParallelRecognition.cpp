@@ -89,15 +89,15 @@ MatchResult min_sad_reducer(MatchResult a, MatchResult b) {
 // Tipo: MatchResult
 // Funzione: min_sad_reducer
 // Inizializzatore: un oggetto MatchResult di default (SAD = infinito)
-/*#pragma omp declare reduction(min_sad_result : MatchResult : \
+#pragma omp declare reduction(min_sad_result : MatchResult : \
     omp_out = min_sad_reducer(omp_out, omp_in)) \
-    initializer(omp_priv = MatchResult())*/
+    initializer(omp_priv = MatchResult())
 
 
 /**
  * @brief Versione 3: "Reduction" (Advanced)
  */
-/*MatchResult parallel_recognition_reduction(const std::vector<std::vector<float>>& dataset, const std::vector<float>& query) {
+MatchResult parallel_recognition_reduction(const std::vector<std::vector<float>>& dataset, const std::vector<float>& query) {
 
     MatchResult best_global_match; // Questa variabile accumulerà il risultato
 
@@ -118,4 +118,4 @@ MatchResult min_sad_reducer(MatchResult a, MatchResult b) {
 
     // Non serve nessuna sezione critica! OpenMP fa tutto.
     return best_global_match;
-}*/
+}

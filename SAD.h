@@ -3,7 +3,6 @@
 
 #include <limits>
 #include <vector>
-#include <string>
 
 struct MatchResult {
     double min_sad = std::numeric_limits<double>::max();

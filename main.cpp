@@ -9,7 +9,7 @@
 #include "ParallelRecognition.h"
 
 int main() {
-    // Acquisizione dati
+    // ---------------- Acquisizione dati ----------------
     std::string data_path = "../data";
     std::string query_path = data_path + "/query.csv";
 
@@ -30,50 +30,30 @@ int main() {
         }
     }
     std::cout << "Caricate " << timeseries.size() << " serie temporali." << std::endl;
+    std::cout << "Lunghezza serie: " << timeseries[0].size() << " punti." << std::endl;
+    std::cout << "Lunghezza query: " << query.size() << " punti." << std::endl;
 
-    // --- Sequenziale ---
+    // ---------------- Ricerca Sequenziale ----------------
     std::cout << "\n--- Avvio Ricerca Sequenziale ---" << std::endl;
     std::vector<MatchResult> results_seq;
+    MatchResult best_sequential_match;
     results_seq.reserve(timeseries.size()); // Ottimizzazione: pre-alloca memoria
 
     auto start_time_seq = std::chrono::high_resolution_clock::now();
-
-    // NOTA: Questo loop calcola il best-match per *ogni* serie
-    // e lo salva in un vettore.
     for (size_t i = 0; i < timeseries.size(); ++i) {
         MatchResult result = sequential_recognition(timeseries[i], query);
         results_seq.push_back(result);
     }
-
-    auto end_time_seq = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration_seq = end_time_seq - start_time_seq;
-
-    // Trova il migliore *tra tutti* i risultati
-    MatchResult best_sequential_match;
     for (size_t i = 0; i < results_seq.size(); ++i) {
         if (results_seq[i].min_sad < best_sequential_match.min_sad) {
             best_sequential_match = results_seq[i];
-            // Potremmo voler salvare anche l'indice della *serie*
-            // best_sequential_match.series_index = i; // (Richiede modifica a MatchResult)
         }
     }
+    auto end_time_seq = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration_seq = end_time_seq - start_time_seq;
+    std::cout << "Tempo totale - Sequenziale: " << duration_seq.count() << " secondi" << std::endl;
 
-    std::cout << "Tempo totale Sequenziale: " << duration_seq.count() << " secondi" << std::endl;
-
-    // Stampa il miglior risultato trovato
-    if (best_sequential_match.index != -1) {
-        std::cout << "\n--- Miglior Match Trovato (Sequenziale) ---" << std::endl;
-        std::cout << "  Indice nel file: " << best_sequential_match.index << std::endl;
-        std::cout << "  Valore SAD (minimo): " << best_sequential_match.min_sad << std::endl;
-    } else {
-        std::cout << "\nNessun match è stato trovato in nessuna serie." << std::endl;
-    }
-    std::cout << "--------------------------------------" << std::endl;
-
-
-    // === INIZIO CODICE AGGIUNTO ===
-
-    // --- Parallelo V1: Bottleneck ---
+    // ---------------- Ricerca Parallela - Collo di bottiglia ----------------
     std::cout << "\n--- Avvio Ricerca Parallela (V1: Bottleneck) ---" << std::endl;
     auto start_time_p1 = std::chrono::high_resolution_clock::now();
     MatchResult result_p1 = parallel_recognition_bottleneck(timeseries, query);
@@ -82,7 +62,7 @@ int main() {
     std::cout << "Tempo (Bottleneck): " << duration_p1.count() << " secondi" << std::endl;
 
 
-    // --- Parallelo V2: Standard ---
+    // ---------------- Ricerca Parallela - Standard ----------------
     std::cout << "\n--- Avvio Ricerca Parallela (V2: Standard) ---" << std::endl;
     auto start_time_p2 = std::chrono::high_resolution_clock::now();
     MatchResult result_p2 = parallel_recognition_standard(timeseries, query);
@@ -92,15 +72,15 @@ int main() {
 
 
     // --- Parallelo V3: Reduction ---
-    /*std::cout << "\n--- Avvio Ricerca Parallela (V3: Reduction) ---" << std::endl;
+    std::cout << "\n--- Avvio Ricerca Parallela (V3: Reduction) ---" << std::endl;
     auto start_time_p3 = std::chrono::high_resolution_clock::now();
     MatchResult result_p3 = parallel_recognition_reduction(timeseries, query);
     auto end_time_p3 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration_p3 = end_time_p3 - start_time_p3;
-    std::cout << "Tempo (Reduction): " << duration_p3.count() << " secondi" << std::endl;*/
+    std::cout << "Tempo (Reduction): " << duration_p3.count() << " secondi" << std::endl;
 
 
-    // --- Riepilogo e Confronto ---
+    // ---------------- Riepilogo ----------------
     std::cout << "\n\n--- Riepilogo e Confronto Risultati ---" << std::endl;
     std::cout << "Miglior Match (Sequenziale): \tSAD=" << best_sequential_match.min_sad
               << " | Indice=" << best_sequential_match.index << std::endl;
@@ -108,10 +88,10 @@ int main() {
               << " | Indice=" << result_p1.index << std::endl;
     std::cout << "Miglior Match (Par. Standard): \tSAD=" << result_p2.min_sad
               << " | Indice=" << result_p2.index << std::endl;
-    /*std::cout << "Miglior Match (Par. Reduction): \tSAD=" << result_p3.min_sad
-              << " | Indice=" << result_p3.index << std::endl;*/
+    std::cout << "Miglior Match (Par. Reduction): \tSAD=" << result_p3.min_sad
+              << " | Indice=" << result_p3.index << std::endl;
 
-    // --- Confronto Tempi e Speedup ---
+    // ---------------- Confronto Tempi e Speedup --------------------------------
     std::cout << "\n--- Riepilogo Tempi (Speedup vs Sequenziale) ---" << std::endl;
     std::cout << "Sequenziale: \t\t" << duration_seq.count() << " secondi \t(Baseline 1.00x)" << std::endl;
 
@@ -121,12 +101,10 @@ int main() {
     std::cout << "Par. (Standard): \t" << duration_p2.count() << " secondi \t(Speedup: "
               << (duration_seq.count() / duration_p2.count()) << "x)" << std::endl;
 
-    /*std::cout << "Par. (Reduction): \t" << duration_p3.count() << " secondi \t(Speedup: "
-              << (duration_seq.count() / duration_p3.count()) << "x)" << std::endl;*/
+    std::cout << "Par. (Reduction): \t" << duration_p3.count() << " secondi \t(Speedup: "
+              << (duration_seq.count() / duration_p3.count()) << "x)" << std::endl;
 
     std::cout << "------------------------------------------------" << std::endl;
-
-    // === FINE CODICE AGGIUNTO ===
 
     return 0;
 }

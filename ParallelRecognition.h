@@ -24,7 +24,6 @@ MatchResult parallel_recognition_standard(const std::vector<std::vector<float>>&
  * @brief Versione 3: "Reduction" (Advanced)
  * Utilizza una riduzione custom di OpenMP (richiede C++11 e OpenMP 4.5+).
  * È la versione più "pulita" ed elegante dal punto di vista del codice.
- * [cite_start]NOTA: Il tuo CMakeLists.txt con /openmp:llvm (MSVC) [cite: 2] dovrebbe supportarlo.
  */
 MatchResult parallel_recognition_reduction(const std::vector<std::vector<float>>& dataset, const std::vector<float>& query);
 

@@ -4,11 +4,8 @@ project(ParallelComputing_PatternRecognition CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# 1. Trova OpenMP (lo usiamo solo per 'MSVC')
 find_package(OpenMP REQUIRED)
-# Svuota la variabile "incriminata".
-# Questo impedisce a CMake di aggiungere automaticamente -fopenmp
-# quando linki OpenMP::OpenMP_CXX.
-set(OpenMP_CXX_FLAGS "")
 
 add_executable(
         ParallelComputing_PatternRecognition
@@ -23,19 +20,27 @@ add_executable(
         ParallelRecognition.h
 )
 
-# Aggiunge l'opzione specifica per MSVC per abilitare il supporto
-# completo a OpenMP, incluse le riduzioni min/max.
+# 2. Logica esplicita per compilatore
 if(MSVC)
-    # FORZA LA RIMOZIONE dei flag errati (per GCC) che CLion
-    # potrebbe aggiungere in automatico, causando il conflitto.
-    string(REPLACE "-openmp" " " CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-    string(REPLACE "-fopenmp" " " CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-
-    # Aggiunge il flag MSVC corretto
+    # --- Per Visual Studio ---
+    # Aggiungi l'opzione di compilazione
     target_compile_options(ParallelComputing_PatternRecognition PRIVATE "/openmp:llvm")
-else()
-    # Assicura che per altri compilatori (GCC/Clang) il flag corretto sia usato
-    target_compile_options(ParallelComputing_PatternRecognition PRIVATE "-fopenmp")
-endif()
+    # Lascia che il target gestisca il linking
+    target_link_libraries(ParallelComputing_PatternRecognition PRIVATE OpenMP::OpenMP_CXX)
 
-target_link_libraries(ParallelComputing_PatternRecognition PRIVATE OpenMP::OpenMP_CXX)
+else()
+    # --- Per GCC (MinGW) o Clang ---
+    # La flag "-fopenmp" serve SIA per compilare CHE per linkare.
+    # Dobbiamo aggiungerla in entrambi i posti.
+
+    # 2a. Aggiungila alle opzioni di COMPILAZIONE
+    target_compile_options(ParallelComputing_PatternRecognition PRIVATE "-fopenmp")
+
+    # 2b. Aggiungila ESPLICITAMENTE alle opzioni di LINKING
+    # Questa è la riga chiave che mancava e che risolve l'errore
+    target_link_options(ParallelComputing_PatternRecognition PRIVATE "-fopenmp")
+
+    # Per sicurezza, lasciamo anche il target. Non fa male.
+    target_link_libraries(ParallelComputing_PatternRecognition PRIVATE OpenMP::OpenMP_CXX)
+
+endif()
