@@ -9,6 +9,9 @@ struct MatchResult {
     long long index = -1;
 };
 
+/**
+ * @brief funzione che calcola la SAD
+ */
 double calculate_sad(const std::vector<float>& series, const std::vector<float>& query, long long start_index);
 
 #endif //PARALLELCOMPUTING_PATTERNRECOGNITION_SAD_H

@@ -1,10 +1,9 @@
-#include "CSVReader.h"
-
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
 
-// Legge il file .csv e ne estrae i valori salvandoli in vector
+#include "CSVReader.h"
+
 std::vector<float> read_csv(const std::string& filepath) {
     std::ifstream file(filepath);
     if (!file.is_open()) {

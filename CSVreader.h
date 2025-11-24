@@ -4,7 +4,9 @@
 #include <string>
 #include <vector>
 
-// Funzione per leggere una serie temporale da un file CSV e restituirla come vector
+/**
+ * @brief Legge il file .csv e ne estrae i valori salvandoli in vectorLegge il file .csv e ne estrae i valori salvandoli in vector
+*/
 std::vector<float> read_csv(const std::string& filepath);
 
 #endif

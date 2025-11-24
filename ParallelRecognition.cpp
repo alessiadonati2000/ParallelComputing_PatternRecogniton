@@ -1,13 +1,8 @@
-#include "ParallelRecognition.h"
-
 #include <iostream>
 
 #include "SequentialRecognition.h"
-#include <omp.h>
+#include "ParallelRecognition.h"
 
-/**
- * @brief Versione 1: "Bottleneck"
- */
 MatchResult parallel_recognition_bottleneck(const std::vector<std::vector<float>>& dataset, const std::vector<float>& query) {
 
     MatchResult best_global_match; // Unica variabile condivisa
@@ -33,10 +28,6 @@ MatchResult parallel_recognition_bottleneck(const std::vector<std::vector<float>
     return best_global_match;
 }
 
-
-/**
- * @brief Versione 2: "Standard" (Good Practice)
- */
 MatchResult parallel_recognition_standard(const std::vector<std::vector<float>>& dataset, const std::vector<float>& query) {
 
     MatchResult best_global_match; // Risultato finale condiviso
@@ -70,7 +61,7 @@ MatchResult parallel_recognition_standard(const std::vector<std::vector<float>>&
                 best_global_match = best_thread_match;
             }
         }
-    } // --- fine regione parallela ---
+    }
 
     return best_global_match;
 }
@@ -88,30 +79,20 @@ MatchResult min_sad_reducer(MatchResult a, MatchResult b) {
     }
 }
 
-// 3. Dichiara la riduzione custom
-// Nome: min_sad_result
-// Tipo: MatchResult
-// Funzione: min_sad_reducer
-// Inizializzatore: un oggetto MatchResult di default (SAD = infinito)
 #pragma omp declare reduction(min_sad_result : MatchResult : \
     omp_out = min_sad_reducer(omp_out, omp_in)) \
     initializer(omp_priv = MatchResult())
 
-
-/**
- * @brief Versione 3: "Reduction" (Advanced)
- */
 MatchResult parallel_recognition_reduction(const std::vector<std::vector<float>>& dataset, const std::vector<float>& query) {
     MatchResult best_global_match; // Questa variabile accumulerà il risultato
 
-    // Usiamo la nostra riduzione custom "min_sad_result"
 #pragma omp parallel for schedule(dynamic) reduction(min_sad_result:best_global_match)
     for (size_t i = 0; i < dataset.size(); ++i) {
 
         MatchResult series_result = sequential_recognition(dataset[i], query);
 
         // Se questo risultato è migliore del "best_global_match" *locale* del thread,
-        // lo aggiorniamo. OpenMP gestisce l'unione di tutti i risultati
+        // lo aggiorna. OpenMP gestisce l'unione di tutti i risultati
         // "best_global_match" locali alla fine.
         if (series_result.min_sad < best_global_match.min_sad) {
             best_global_match.min_sad = series_result.min_sad;
