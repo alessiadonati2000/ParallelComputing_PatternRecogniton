@@ -1,0 +1,14 @@
+
+========================================================
+                 SINTESI DEI RISULTATI
+========================================================
+Parametri: 500 serie, 100000 punti/serie, 10 test mediati.
+Miglior Match trovato (SAD): 0 @ Indice 98435
+--------------------------------------------------------
+Metodo                    | Tempo Medio (ms)   | Speedup   
+------------------------- | ------------------ | ----------
+Sequenziale (CPU)         | 23959.55           | 1.00      x
+Parallelo V1 (Bottle)     | 2737.01            | 8.75      x
+Parallelo V2 (Standard)   | 2719.44            | 8.81      x
+Parallelo V3 (Reduction)  | 2713.46            | 8.83      x
+========================================================

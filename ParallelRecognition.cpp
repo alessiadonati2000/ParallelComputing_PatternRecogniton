@@ -1,4 +1,7 @@
 #include "ParallelRecognition.h"
+
+#include <iostream>
+
 #include "SequentialRecognition.h"
 #include <omp.h>
 
@@ -80,8 +83,9 @@ MatchResult parallel_recognition_standard(const std::vector<std::vector<float>>&
 MatchResult min_sad_reducer(MatchResult a, MatchResult b) {
     if (a.min_sad < b.min_sad) {
         return a;
+    } else {
+        return b;
     }
-    return b;
 }
 
 // 3. Dichiara la riduzione custom
@@ -98,7 +102,6 @@ MatchResult min_sad_reducer(MatchResult a, MatchResult b) {
  * @brief Versione 3: "Reduction" (Advanced)
  */
 MatchResult parallel_recognition_reduction(const std::vector<std::vector<float>>& dataset, const std::vector<float>& query) {
-
     MatchResult best_global_match; // Questa variabile accumulerà il risultato
 
     // Usiamo la nostra riduzione custom "min_sad_result"
