@@ -7,6 +7,7 @@
 #include <numeric>      // Per std::accumulate (calcolo media)
 #include <iomanip>      // Per formattare l'output (setw, setprecision)
 #include <sstream>      // Per costruire stringhe formattate
+#include <omp.h>
 
 #include "CSVReader.h"
 #include "SequentialRecognition.h"
@@ -20,11 +21,20 @@ double calculateAverage(const std::vector<double>& times) {
     return accumulate(times.begin(), times.end(), 0.0) / times.size();
 }
 
+/**
+ * @brief Struttura per memorizzare i risultati di una specifica configurazione di thread
+ */
+struct ThreadConfigResult {
+    int numThreads;
+    double v1Avg, v2Avg, v3Avg;
+};
+
 int main() {
     // ========================================================
     // 1. CONFIGURAZIONE E CARICAMENTO DATI
     // ========================================================
     const int NUM_TESTS = 10;
+    std::vector<int> THREAD_COUNTS = {2, 4, 8, 12};
     std::string data_path = "../data";
     std::string query_path = data_path + "/query.csv";
 
@@ -79,7 +89,6 @@ int main() {
 
     // Variabili per memorizzare i risultati finali
     double seqAvg = 0.0;
-    double p1Avg = 0.0, p2Avg = 0.0, p3Avg = 0.0;
     MatchResult finalResult;
 
     // ========================================================
@@ -95,7 +104,6 @@ int main() {
 
         auto start = std::chrono::high_resolution_clock::now();
 
-        // Esecuzione logica sequenziale per tutte le serie
         MatchResult best_match;
         for (size_t j = 0; j < timeseries.size(); ++j) {
              MatchResult res = sequential_recognition(timeseries[j], query);
@@ -114,128 +122,100 @@ int main() {
     // ========================================================
     // 3. BENCHMARK PARALLELO (V1: BOTTLENECK)
     // ========================================================
-    std::cout << "\n========================================================" << std::endl;
-    std::cout << "           ESPERIMENTO PARALLELO (V1: BOTTLENECK)" << std::endl;
-    std::cout << "========================================================" << std::endl;
 
-    std::vector<double> p1Times;
-    for (int i = 0; i < NUM_TESTS; ++i) {
-        // printf("Avvio test V1 %d/%d...\n", i + 1, NUM_TESTS); // Decommenta se vuoi output verboso
-        auto start = std::chrono::high_resolution_clock::now();
+    std::vector<ThreadConfigResult> allResults;
 
-        parallel_recognition_bottleneck(timeseries, query);
+    for (int n : THREAD_COUNTS) {
+        std::cout << "\n>>> AVVIO TEST CON " << n << " THREAD <<<" << std::endl;
+        omp_set_num_threads(n);
 
-        auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> elapsed = end - start;
-        p1Times.push_back(elapsed.count());
+        ThreadConfigResult currentRes;
+        currentRes.numThreads = n;
+
+        std::cout << "\n========================================================" << std::endl;
+        std::cout << "           ESPERIMENTO PARALLELO (V1: BOTTLENECK)" << std::endl;
+        std::cout << "========================================================" << std::endl;
+        std::vector<double> v1Times;
+        for (int i = 0; i < NUM_TESTS; ++i) {
+            // printf("Avvio test V1 %d/%d...\n", i + 1, NUM_TESTS); // Decommenta se vuoi output verboso
+            auto start = std::chrono::high_resolution_clock::now();
+
+            parallel_recognition_bottleneck(timeseries, query);
+
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> elapsed = end - start;
+            v1Times.push_back(elapsed.count());
+        }
+        currentRes.v1Avg = calculateAverage(v1Times);
+
+        std::cout << "\n========================================================" << std::endl;
+        std::cout << "           ESPERIMENTO PARALLELO (V2: STANDARD)" << std::endl;
+        std::cout << "========================================================" << std::endl;
+        std::vector<double> v2Times;
+        for (int i = 0; i < NUM_TESTS; ++i) {
+            auto start = std::chrono::high_resolution_clock::now();
+            parallel_recognition_standard(timeseries, query);
+            auto end = std::chrono::high_resolution_clock::now();
+            v2Times.push_back(std::chrono::duration<double, std::milli>(end - start).count());
+        }
+        currentRes.v2Avg = calculateAverage(v2Times);
+
+        std::cout << "\n========================================================" << std::endl;
+        std::cout << "           ESPERIMENTO PARALLELO (V3: REDUCTION)" << std::endl;
+        std::cout << "========================================================" << std::endl;
+        std::vector<double> v3Times;
+        for (int i = 0; i < NUM_TESTS; ++i) {
+            auto start = std::chrono::high_resolution_clock::now();
+            parallel_recognition_reduction(timeseries, query);
+            auto end = std::chrono::high_resolution_clock::now();
+            v3Times.push_back(std::chrono::duration<double, std::milli>(end - start).count());
+        }
+        currentRes.v3Avg = calculateAverage(v3Times);
+
+        allResults.push_back(currentRes);
+        printf("Completati test per %d thread.\n", n);
+
     }
-    p1Avg = calculateAverage(p1Times);
-    printf("Tempo MEDIO V1 (Bottleneck): %4.2f ms | Speedup: %4.2fx\n", p1Avg, seqAvg / p1Avg);
-
 
     // ========================================================
-    // 4. BENCHMARK PARALLELO (V2: STANDARD)
+    // 6. SINTESI DEI RISULTATI
     // ========================================================
-    std::cout << "\n========================================================" << std::endl;
-    std::cout << "           ESPERIMENTO PARALLELO (V2: STANDARD)" << std::endl;
-    std::cout << "========================================================" << std::endl;
-
-    std::vector<double> p2Times;
-    for (int i = 0; i < NUM_TESTS; ++i) {
-        auto start = std::chrono::high_resolution_clock::now();
-
-        parallel_recognition_standard(timeseries, query);
-
-        auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> elapsed = end - start;
-        p2Times.push_back(elapsed.count());
-    }
-    p2Avg = calculateAverage(p2Times);
-    printf("Tempo MEDIO V2 (Standard):   %4.2f ms | Speedup: %4.2fx\n", p2Avg, seqAvg / p2Avg);
-
-
-    // ========================================================
-    // 5. BENCHMARK PARALLELO (V3: REDUCTION)
-    // ========================================================
-    std::cout << "\n========================================================" << std::endl;
-    std::cout << "           ESPERIMENTO PARALLELO (V3: REDUCTION)" << std::endl;
-    std::cout << "========================================================" << std::endl;
-
-    std::vector<double> p3Times;
-    for (int i = 0; i < NUM_TESTS; ++i) {
-        auto start = std::chrono::high_resolution_clock::now();
-
-        parallel_recognition_reduction(timeseries, query);
-
-        auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> elapsed = end - start;
-        p3Times.push_back(elapsed.count());
-    }
-    p3Avg = calculateAverage(p3Times);
-    printf("Tempo MEDIO V3 (Reduction):  %4.2f ms | Speedup: %4.2fx\n", p3Avg, seqAvg / p3Avg);
-
-
-    // ========================================================
-    // 6. SINTESI DEI RISULTATI (CONSOLE & FILE)
-    // ========================================================
-
-    // Costruiamo la tabella dei risultati
     std::stringstream ss;
-    ss << std::left; // Allinea a sinistra per tutto lo stream
+    ss << std::fixed << std::setprecision(2);
+    ss << "\n================================================================================" << std::endl;
+    ss << "                      REPORT SCALABILITÀ E PERFORMANCE" << std::endl;
+    ss << "================================================================================" << std::endl;
+    ss << "Tempo Sequenziale di riferimento: " << seqAvg << " ms\n" << std::endl;
 
-    // Header Tabella
-    ss << "\n========================================================" << std::endl;
-    ss << "                 SINTESI DEI RISULTATI" << std::endl;
-    ss << "========================================================" << std::endl;
-    ss << "Parametri: " << timeseries.size() << " serie, "
-       << timeseries[0].size() << " punti/serie, " << NUM_TESTS << " test mediati." << std::endl;
-    ss << "Miglior Match trovato (SAD): " << finalResult.min_sad
-       << " @ Indice " << finalResult.index << std::endl;
-    ss << "--------------------------------------------------------" << std::endl;
+    ss << std::left << std::setw(12) << "Threads"
+       << " | " << std::setw(18) << "V1 Bottleneck"
+       << " | " << std::setw(18) << "V2 Standard"
+       << " | " << std::setw(18) << "V3 Reduction" << std::endl;
+    ss << std::string(80, '-') << std::endl;
 
-    // Intestazioni Colonne
-    ss << std::setw(25) << "Metodo" << " | "
-       << std::setw(18) << "Tempo Medio (ms)" << " | "
-       << std::setw(10) << "Speedup" << std::endl;
+    for (const auto& res : allResults) {
+        ss << std::left << std::setw(12) << ("  " + std::to_string(res.numThreads)) << " | ";
 
-    ss << std::setw(25) << "-------------------------" << " | "
-       << std::setw(18) << "------------------" << " | "
-       << std::setw(10) << "----------" << std::endl;
+        // Colonna V1 (Tempo e Speedup)
+        ss << std::setw(7) << res.v1Avg << " (" << std::setw(4) << (seqAvg/res.v1Avg) << "x) | ";
 
-    // Riga Sequenziale
-    ss << std::setw(25) << "Sequenziale (CPU)" << " | "
-       << std::setw(18) << std::fixed << std::setprecision(2) << seqAvg << " | "
-       << std::setw(10) << std::fixed << std::setprecision(2) << 1.00 << "x" << std::endl;
+        // Colonna V2 (Tempo e Speedup)
+        ss << std::setw(7) << res.v2Avg << " (" << std::setw(4) << (seqAvg/res.v2Avg) << "x) | ";
 
-    // Riga V1
-    ss << std::setw(25) << "Parallelo V1 (Bottle)" << " | "
-       << std::setw(18) << std::fixed << std::setprecision(2) << p1Avg << " | "
-       << std::setw(10) << std::fixed << std::setprecision(2) << (seqAvg / p1Avg) << "x" << std::endl;
+        // Colonna V3 (Tempo e Speedup)
+        ss << std::setw(7) << res.v3Avg << " (" << std::setw(4) << (seqAvg/res.v3Avg) << "x)" << std::endl;
+    }
+    ss << "================================================================================" << std::endl;
 
-    // Riga V2
-    ss << std::setw(25) << "Parallelo V2 (Standard)" << " | "
-       << std::setw(18) << std::fixed << std::setprecision(2) << p2Avg << " | "
-       << std::setw(10) << std::fixed << std::setprecision(2) << (seqAvg / p2Avg) << "x" << std::endl;
-
-    // Riga V3
-    ss << std::setw(25) << "Parallelo V3 (Reduction)" << " | "
-       << std::setw(18) << std::fixed << std::setprecision(2) << p3Avg << " | "
-       << std::setw(10) << std::fixed << std::setprecision(2) << (seqAvg / p3Avg) << "x" << std::endl;
-
-    ss << "========================================================" << std::endl;
-
-    // Stampa a video
     std::cout << ss.str();
 
-    // Scrittura su file
-    std::ofstream resultsFile(resultsPath);
-    if (resultsFile.is_open()) {
-        resultsFile << ss.str();
-        resultsFile.close();
-        std::cout << "\nRisultati salvati con successo in: " << resultsPath << std::endl;
-    } else {
-        std::cerr << "\nErrore: Impossibile scrivere il file dei risultati in " << resultsPath << std::endl;
-    }
+    // Salvataggio su file
+    auto t = std::time(nullptr);
+    auto lt = *std::localtime(&t);
+    std::ostringstream oss;
+    oss << std::put_time(&lt, "%Y%m%d-%H%M%S");
+    std::ofstream file(outputDir + "/benchmark_threads_" + oss.str() + ".txt");
+    if (file.is_open()) { file << ss.str(); file.close(); }
 
     return 0;
 }
